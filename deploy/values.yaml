@@ -1,0 +1,18 @@
+# Values for shopwise-platform/charts/laravel-service. `name` and `image` are set by the Tiltfile.
+http:
+  workers: 1
+consumers:
+  # Queues welcome mails. Add orders.* / payments.refunded here when their handlers exist.
+  - name: customer-mails
+    topics: [identity.customer-registered]
+scheduler:
+  enabled: true
+# Mails are sent by SendMail jobs on the database queue: the chart still needs a `queue:work` Deployment.
+# Topics this service owns (it is the only producer): none.
+topics: []
+env:
+  LOG_CHANNEL: stderr
+  OCTANE_SERVER: frankenphp
+  MAIL_FROM_ADDRESS: hello@shopwise.test
+  MAIL_FROM_NAME: Shopwise
+  STOREFRONT_URL: http://localhost:3000
