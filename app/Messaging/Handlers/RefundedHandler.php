@@ -35,7 +35,8 @@ final readonly class RefundedHandler implements MessageHandler
 
         $this->queueMail->handle(
             messageId: $envelope->id,
-            dedupKey: $event->paymentId,
+            // Checkout refunds a payment once, in full; external refunds can be several partial ones per payment.
+            dedupKey: $event->reason === 'external' ? $event->stripeRefundId : $event->paymentId,
             recipient: $customer->email,
             mail: new RefundMail($customer->name, new Amount($event->amount, $event->currency), $event->reason),
         );

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Messaging\Handlers\CustomerRegisteredHandler;
+use App\Messaging\Handlers\OrderCancelledHandler;
 use App\Messaging\Handlers\OrderPlacedHandler;
 use App\Messaging\Handlers\OrderShippedHandler;
 use App\Messaging\Handlers\RefundedHandler;
@@ -17,6 +18,7 @@ return [
         'identity.customer-registered' => CustomerRegisteredHandler::class,
         'orders.order-placed' => OrderPlacedHandler::class,
         'orders.order-shipped' => OrderShippedHandler::class,
+        'orders.order-cancelled' => OrderCancelledHandler::class,
         'payments.refunded' => RefundedHandler::class,
     ],
 

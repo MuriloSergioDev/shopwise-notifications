@@ -4,7 +4,7 @@ http:
 consumers:
   # Every event that causes a mail, plus customer-registered for the customers read model.
   - name: mails
-    topics: [identity.customer-registered, orders.order-placed, orders.order-shipped, payments.refunded]
+    topics: [identity.customer-registered, orders.order-placed, orders.order-shipped, orders.order-cancelled, payments.refunded]
 scheduler:
   enabled: true
 queue:

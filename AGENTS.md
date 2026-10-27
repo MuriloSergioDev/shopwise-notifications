@@ -13,7 +13,8 @@ checks and how to run PHP are described there and still apply.
   | `identity.customer-registered` | `WelcomeMail` (`welcome`) | customerId | event email; also upserts `customers` |
   | `orders.order-placed` | `OrderConfirmationMail` (`order-confirmation`) | orderId | event email; also refreshes `customers.email` |
   | `orders.order-shipped` | `OrderShippedMail` (`order-shipped`) | orderId | event email |
-  | `payments.refunded` | `RefundMail` (`refund`) | paymentId | `customers` by customerId; unknown customer → warning log, no mail |
+  | `orders.order-cancelled` | `OrderCancelledMail` (`order-cancelled`) | orderId | event email; no mail when `orderId` is null (no order existed) |
+  | `payments.refunded` | `RefundMail` (`refund`) | paymentId; stripeRefundId for reason `external` (several partial refunds per payment) | `customers` by customerId; unknown customer → warning log, no mail |
 - **HTTP**: none besides `/up`.
 - **REST dependencies**: none. SMTP: Mailpit in the cluster (chart sets `MAIL_MAILER=smtp`, `MAIL_HOST=mailpit`, `MAIL_PORT=1025`).
 - **Runtime**: consumer `mails`, scheduler, queue worker (`queue.enabled` in `deploy/values.yaml`; without it mails stay `queued`).

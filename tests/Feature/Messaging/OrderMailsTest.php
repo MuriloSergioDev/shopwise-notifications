@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\MailStatus;
+use App\Mail\OrderCancelledMail;
 use App\Mail\OrderConfirmationMail;
 use App\Mail\OrderShippedMail;
 use App\Mail\RefundMail;
@@ -125,6 +126,42 @@ describe('orders.order-shipped', function (): void {
     });
 });
 
+describe('orders.order-cancelled', function (): void {
+    it('tells the customer once that a placed order was cancelled', function (): void {
+        Mail::fake();
+        $dispatcher = app(MessageDispatcher::class);
+        $envelope = contractExample('orders.order-cancelled.v1');
+
+        expect($dispatcher->dispatch($envelope, 'orders.order-cancelled'))->toBe(DispatchResult::Handled)
+            ->and($dispatcher->dispatch($envelope, 'orders.order-cancelled'))->toBe(DispatchResult::Duplicate)
+            ->and($dispatcher->dispatch(republished('orders.order-cancelled.v1', '01JBCDEFGHJKMNPQRSTVWXYZ75'), 'orders.order-cancelled'))
+            ->toBe(DispatchResult::Handled);
+
+        Mail::assertSentCount(1);
+        Mail::assertSent(OrderCancelledMail::class, function (OrderCancelledMail $mail): bool {
+            $mail->assertHasTo('customer@shopwise.test');
+            $mail->assertHasSubject('Your Shopwise order SW-000123 was cancelled');
+            $mail->assertSeeInHtml('could not be completed in time');
+
+            return true;
+        });
+
+        $log = MailLog::query()->sole();
+        expect($log->template)->toBe('order-cancelled')
+            ->and($log->dedup_key)->toBe('01JBCDEFGHJKMNPQRSTVWXYZ44');
+    });
+
+    it('sends nothing when no order existed', function (): void {
+        Mail::fake();
+
+        $envelope = contractExample('orders.order-cancelled.v1', ['orderId' => null, 'number' => null, 'customerId' => null, 'email' => null]);
+
+        expect(app(MessageDispatcher::class)->dispatch($envelope, 'orders.order-cancelled'))->toBe(DispatchResult::Handled);
+        Mail::assertNothingSent();
+        expect(MailLog::query()->count())->toBe(0);
+    });
+});
+
 describe('payments.refunded', function (): void {
     it('mails a known customer once per payment', function (): void {
         Mail::fake();
@@ -157,6 +194,29 @@ describe('payments.refunded', function (): void {
         $dispatcher->dispatch(contractExample('payments.refunded.v1', ['reason' => 'reservation_expired']), 'payments.refunded');
 
         Mail::assertSent(RefundMail::class, fn (RefundMail $mail): bool => $mail->hasTo('ada@example.com') && $mail->reason === 'reservation_expired');
+    });
+
+    it('mails each external partial refund once, without saying nothing was ordered', function (): void {
+        Mail::fake();
+        Customer::factory()->create(['customer_id' => '01JBCDEFGHJKMNPQRSTVWXYZ11', 'email' => 'ada@example.com', 'name' => 'Ada Lovelace']);
+        $dispatcher = app(MessageDispatcher::class);
+        $first = ['reason' => 'external', 'amount' => 1000, 'stripeRefundId' => 're_first'];
+
+        $dispatcher->dispatch(contractExample('payments.refunded.v1', $first), 'payments.refunded');
+        $dispatcher->dispatch(republished('payments.refunded.v1', '01JBCDEFGHJKMNPQRSTVWXYZ73', $first), 'payments.refunded');
+        $dispatcher->dispatch(republished('payments.refunded.v1', '01JBCDEFGHJKMNPQRSTVWXYZ74', [...$first, 'amount' => 500, 'stripeRefundId' => 're_second']), 'payments.refunded');
+
+        Mail::assertSentCount(2);
+        Mail::assertSent(RefundMail::class, function (RefundMail $mail): bool {
+            if ($mail->amount->formatted() !== 'USD 10.00') {
+                return false;
+            }
+            $mail->assertSeeInOrderInHtml(['We refunded', 'USD 10.00', 'of your payment to your payment method', 'reply to this email']);
+            $mail->assertDontSeeInHtml('Nothing was ordered');
+
+            return true;
+        });
+        expect(MailLog::query()->pluck('dedup_key')->sort()->values()->all())->toBe(['re_first', 're_second']);
     });
 
     it('skips the mail for an unknown customer without failing the message', function (): void {
