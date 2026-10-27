@@ -2,12 +2,14 @@
 http:
   workers: 1
 consumers:
-  # Queues welcome mails. Add orders.* / payments.refunded here when their handlers exist.
-  - name: customer-mails
-    topics: [identity.customer-registered]
+  # Every event that causes a mail, plus customer-registered for the customers read model.
+  - name: mails
+    topics: [identity.customer-registered, orders.order-placed, orders.order-shipped, payments.refunded]
 scheduler:
   enabled: true
-# Mails are sent by SendMail jobs on the database queue: the chart still needs a `queue:work` Deployment.
+queue:
+  # Runs the SendMail jobs (database queue).
+  enabled: true
 # Topics this service owns (it is the only producer): none.
 topics: []
 env:

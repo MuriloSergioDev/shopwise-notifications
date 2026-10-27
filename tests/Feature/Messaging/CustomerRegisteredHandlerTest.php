@@ -6,6 +6,7 @@ use App\Actions\QueueMail;
 use App\Enums\MailStatus;
 use App\Jobs\SendMail;
 use App\Mail\WelcomeMail;
+use App\Models\Customer;
 use App\Models\MailLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -27,6 +28,7 @@ it('sends one welcome mail when the event is delivered twice', function (): void
 
     $log = MailLog::query()->sole();
     expect($log->message_id)->toBe('01JBCDEFGHJKMNPQRSTVWXYZ10')
+        ->and($log->dedup_key)->toBe('01JBCDEFGHJKMNPQRSTVWXYZ11')
         ->and($log->template)->toBe('welcome')
         ->and($log->recipient)->toBe('ada@example.com')
         ->and($log->status)->toBe(MailStatus::Sent)
@@ -52,7 +54,7 @@ it('welcomes each registration separately', function (): void {
     $dispatcher = app(MessageDispatcher::class);
     $dispatcher->dispatch(contractExample('identity.customer-registered.v1'), 'identity.customer-registered');
 
-    $other = contractExample('identity.customer-registered.v1', ['email' => 'grace@example.com', 'name' => 'Grace Hopper']);
+    $other = contractExample('identity.customer-registered.v1', ['customerId' => '01JBCDEFGHJKMNPQRSTVWXYZ21', 'email' => 'grace@example.com', 'name' => 'Grace Hopper']);
     $dispatcher->dispatch(Envelope::fromArray([...$other->toArray(), 'id' => '01JBCDEFGHJKMNPQRSTVWXYZ20']), 'identity.customer-registered');
 
     Mail::assertSentCount(2);
@@ -75,7 +77,7 @@ it('sends nothing when the handling transaction rolls back', function (): void {
 
     try {
         DB::transaction(function (): void {
-            app(QueueMail::class)->handle('01JBCDEFGHJKMNPQRSTVWXYZ30', 'ada@example.com', new WelcomeMail('Ada'));
+            app(QueueMail::class)->handle('01JBCDEFGHJKMNPQRSTVWXYZ30', '01JBCDEFGHJKMNPQRSTVWXYZ11', 'ada@example.com', new WelcomeMail('Ada'));
 
             throw new RuntimeException('handler failed after queueing');
         });
@@ -84,4 +86,26 @@ it('sends nothing when the handling transaction rolls back', function (): void {
 
     Mail::assertNothingSent();
     expect(MailLog::query()->count())->toBe(0);
+});
+
+it('welcomes a customer once even when identity re-publishes the registration under a new id', function (): void {
+    Mail::fake();
+    $dispatcher = app(MessageDispatcher::class);
+    $envelope = contractExample('identity.customer-registered.v1');
+    $dispatcher->dispatch($envelope, 'identity.customer-registered');
+
+    $republished = Envelope::fromArray([...$envelope->toArray(), 'id' => '01JBCDEFGHJKMNPQRSTVWXYZ22']);
+
+    expect($dispatcher->dispatch($republished, 'identity.customer-registered'))->toBe(DispatchResult::Handled);
+    Mail::assertSentCount(1);
+});
+
+it('remembers the customer for mails whose events carry no email', function (): void {
+    Mail::fake();
+
+    app(MessageDispatcher::class)->dispatch(contractExample('identity.customer-registered.v1'), 'identity.customer-registered');
+
+    $customer = Customer::query()->findOrFail('01JBCDEFGHJKMNPQRSTVWXYZ11');
+    expect($customer->email)->toBe('ada@example.com')
+        ->and($customer->name)->toBe('Ada Lovelace');
 });

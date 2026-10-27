@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  *
  * @property string $id
  * @property string $message_id
+ * @property string $dedup_key
  * @property string $template
  * @property string $recipient
  * @property MailStatus $status
@@ -26,7 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
-#[Fillable(['message_id', 'template', 'recipient', 'status', 'error', 'sent_at'])]
+#[Fillable(['message_id', 'dedup_key', 'template', 'recipient', 'status', 'error', 'sent_at'])]
 #[Table('mail_log')]
 final class MailLog extends Model
 {

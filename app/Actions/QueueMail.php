@@ -12,16 +12,17 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Support\Str;
 
 /**
- * Logs a mail caused by an event and queues it. `mail_log` is unique per (message id, template), so a
- * redelivered event finds its row and queues nothing. The job is dispatched after commit: no mail goes
- * out for an event whose handling rolled back.
+ * Logs a mail caused by an event and queues it. `mail_log` is unique per (template, dedup key), where the dedup key
+ * is the business id the mail is about (customer, order, payment): a redelivered event, or an outcome its producer
+ * re-published under a new envelope id, finds the row and queues nothing. The job is dispatched after commit, so no
+ * mail goes out for an event whose handling rolled back.
  */
 final readonly class QueueMail
 {
     /**
-     * @return bool whether the mail was queued (false: this event already produced it)
+     * @return bool whether the mail was queued (false: it was already queued for this dedup key)
      */
-    public function handle(string $messageId, string $recipient, Mailable&TemplatedMail $mail): bool
+    public function handle(string $messageId, string $dedupKey, string $recipient, Mailable&TemplatedMail $mail): bool
     {
         $id = (string) Str::ulid();
         $now = now();
@@ -29,6 +30,7 @@ final readonly class QueueMail
         $inserted = MailLog::query()->insertOrIgnore([
             'id' => $id,
             'message_id' => $messageId,
+            'dedup_key' => $dedupKey,
             'template' => $mail->template(),
             'recipient' => $recipient,
             'status' => MailStatus::Queued->value,

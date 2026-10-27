@@ -18,6 +18,7 @@ final class MailLogFactory extends Factory
     {
         return [
             'message_id' => (string) Str::ulid(),
+            'dedup_key' => (string) Str::ulid(),
             'template' => 'welcome',
             'recipient' => fake()->safeEmail(),
             'status' => MailStatus::Queued,
