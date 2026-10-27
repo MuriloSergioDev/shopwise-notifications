@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Data;
 
 use InvalidArgumentException;
+use Shopwise\Contracts\Events\Orders\OrderPlacedV1;
 
 /**
- * What the order confirmation needs from orders.order-placed v1. Parsed here rather than with the generated
- * OrderPlacedV1, which types the nullable `couponCode` as a plain string and leaves lines/address untyped.
+ * What the order confirmation needs from orders.order-placed v1. The generated OrderPlacedV1 leaves the nested
+ * lines and shipping address as untyped arrays, so those are checked and typed here.
  */
 final readonly class PlacedOrder
 {
@@ -30,16 +31,16 @@ final readonly class PlacedOrder
         public array $shippingAddress,
     ) {}
 
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public static function fromEventData(array $data): self
+    public static function fromEvent(OrderPlacedV1 $event): self
     {
-        $currency = self::string($data, 'currency');
-        $address = self::array($data, 'shippingAddress');
+        $currency = $event->currency;
+        /** @var array<array-key, mixed> $address */
+        $address = $event->shippingAddress;
 
         $lines = [];
-        foreach (self::array($data, 'lines') as $line) {
+        /** @var array<array-key, mixed> $eventLines */
+        $eventLines = $event->lines;
+        foreach ($eventLines as $line) {
             if (! is_array($line)) {
                 throw new InvalidArgumentException('Order line must be an object.');
             }
@@ -56,16 +57,16 @@ final readonly class PlacedOrder
         }
 
         return new self(
-            orderId: self::string($data, 'orderId'),
-            number: self::string($data, 'number'),
-            customerId: self::string($data, 'customerId'),
-            email: self::string($data, 'email'),
+            orderId: $event->orderId,
+            number: $event->number,
+            customerId: $event->customerId,
+            email: $event->email,
             recipientName: self::string($address, 'name'),
             lines: $lines,
-            subtotal: new Amount(self::int($data, 'subtotal'), $currency),
-            discount: new Amount(self::int($data, 'discount'), $currency),
-            total: new Amount(self::int($data, 'total'), $currency),
-            couponCode: self::nullableString($data, 'couponCode'),
+            subtotal: new Amount($event->subtotal, $currency),
+            discount: new Amount($event->discount, $currency),
+            total: new Amount($event->total, $currency),
+            couponCode: $event->couponCode,
             shippingAddress: array_values(array_filter([
                 self::string($address, 'name'),
                 self::string($address, 'line1'),
@@ -106,20 +107,6 @@ final readonly class PlacedOrder
         $value = $data[$field] ?? null;
         if (! is_int($value)) {
             throw new InvalidArgumentException("Field '{$field}' must be an integer.");
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $data
-     * @return array<array-key, mixed>
-     */
-    private static function array(array $data, string $field): array
-    {
-        $value = $data[$field] ?? null;
-        if (! is_array($value)) {
-            throw new InvalidArgumentException("Field '{$field}' must be an object or array.");
         }
 
         return $value;

@@ -33,7 +33,7 @@ checks and how to run PHP are described there and still apply.
 5. Test: feed the contract example twice and once re-published under a new id, assert one mail (see `tests/Feature/Messaging/OrderMailsTest.php`).
 
 ## Gotchas
-- `orders.order-placed` is parsed by `App\Data\PlacedOrder`, not the generated `OrderPlacedV1`: the generator types nullable required fields (`couponCode`) as non-nullable `string`, so `fromArray` throws a TypeError on an order without a coupon.
+- Events are read through the generated `shopwise/contracts` classes. Their nested objects/arrays (order `lines`, `shippingAddress`) are untyped `array`s, so `App\Data\PlacedOrder::fromEvent` checks and types them.
 - Identity's seeder creates customers without publishing `customer-registered`, so seeded customers are unknown here until they place an order; a refund for such a customer is skipped (logged).
 
 ## Rules (enforced in `tests/ArchTest.php`)

@@ -8,6 +8,7 @@ use App\Actions\QueueMail;
 use App\Actions\RecordCustomer;
 use App\Data\PlacedOrder;
 use App\Mail\OrderConfirmationMail;
+use Shopwise\Contracts\Events\Orders\OrderPlacedV1;
 use Shopwise\Kit\Messaging\Envelope;
 use Shopwise\Kit\Messaging\MessageHandler;
 
@@ -24,7 +25,7 @@ final readonly class OrderPlacedHandler implements MessageHandler
 
     public function handle(Envelope $envelope): void
     {
-        $order = PlacedOrder::fromEventData($envelope->data);
+        $order = PlacedOrder::fromEvent(OrderPlacedV1::fromArray($envelope->data));
 
         $this->recordCustomer->handle($order->customerId, $order->email);
         $this->queueMail->handle(
